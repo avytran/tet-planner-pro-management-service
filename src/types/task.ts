@@ -16,6 +16,23 @@ export interface Task {
   updatedAt: Date;
 }
 
+export interface TaskCategory {
+  id: string;
+  name: string;
+}
+
+export interface GetTask{
+  id: string;
+  category: TaskCategory;
+  title: string;
+  duedTime: Date;
+  timeline: Timeline;
+  priority: Priority;
+  status: TaskStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface CreateTaskInput {
   category_id: ObjectId;
   title: string;

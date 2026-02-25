@@ -1,7 +1,7 @@
 import TaskModel from "../database/models/task.model";
 import TaskCategoryModel from "../database/models/taskCategory.model";
 import ShoppingItemModel from "../database/models/shoppingItem.model";
-import { Task, CreateTaskInput, UpdateTaskInput, GetTasksFilter } from "../types/task";
+import { Task, CreateTaskInput, UpdateTaskInput, GetTasksFilter, GetTask } from "../types/task";
 import { DbResult } from "../types/dbResult";
 import { getUserCategoryIds } from "../utils/db.util";
 import mongoose from "mongoose";
@@ -52,7 +52,7 @@ export const createTask = async (
 export const getTasks = async (
   filter: GetTasksFilter,
   userId: string
-): Promise<DbResult<Task[]>> => {
+): Promise<DbResult<GetTask[]>> => {
   try {
     const userCategoryIds = await getUserCategoryIds(userId);
 
@@ -72,12 +72,47 @@ export const getTasks = async (
 
     if (filter.status) query.status = filter.status;
     if (filter.timeline) query.timeline = filter.timeline;
+    if (filter.priority) query.priority = filter.priority;
 
-    const tasks = await TaskModel.find(query).exec();
+    const tasks = await TaskModel.aggregate([
+      { $match: query },
+
+      {
+        $lookup: {
+          from: "task_categories",
+          localField: "category_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+
+      { $unwind: "$category" },
+
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          dued_time: 1,
+          timeline: 1,
+          priority: 1,
+          status: 1,
+          created_at: 1,
+          updated_at: 1,
+
+          category: {
+            id: "$category._id",
+            name: "$category.name",
+          },
+        },
+      },
+    ]);
 
     const result = tasks.map(task => ({
       id: task._id.toString(),
-      categoryId: task.category_id.toString(),
+      category: {
+        id: task.category.id.toString(),
+        name: task.category.name,
+      },
       title: task.title,
       duedTime: task.dued_time,
       timeline: task.timeline,
@@ -85,7 +120,7 @@ export const getTasks = async (
       status: task.status,
       createdAt: task.created_at,
       updatedAt: task.updated_at,
-    }))
+    }));
 
     return {
       status: "success",
@@ -101,24 +136,58 @@ export const getTasks = async (
   }
 };
 
-export const getTaskById = async (taskId: string, userId: string): Promise<DbResult<Task | null>> => {
+export const getTaskById = async (taskId: string, userId: string): Promise<DbResult<GetTask | null>> => {
   try {
     const userCategoryIds = await getUserCategoryIds(userId);
 
-    const task = await TaskModel.findOne({
-      _id: taskId,
-      category_id: { $in: userCategoryIds }
-    });
+    const tasks = await TaskModel.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(taskId),
+          category_id: { $in: userCategoryIds },
+        },
+      },
+      {
+        $lookup: {
+          from: "task_categories",
+          localField: "category_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          dued_time: 1,
+          timeline: 1,
+          priority: 1,
+          status: 1,
+          created_at: 1,
+          updated_at: 1,
+          category: {
+            id: "$category._id",
+            name: "$category.name",
+          },
+        },
+      },
+    ]);
 
-    if (!task) {
+    if (!tasks.length) {
       return { status: "error", message: "Task not found" };
     }
+
+    const task = tasks[0];
 
     return {
       status: "success",
       data: {
         id: task._id.toString(),
-        categoryId: task.category_id.toString(),
+        category: {
+          id: task.category.id.toString(),
+          name: task.category.name,
+        },
         title: task.title,
         duedTime: task.dued_time,
         timeline: task.timeline,
