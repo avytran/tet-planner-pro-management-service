@@ -216,6 +216,13 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
           "task_category.user_id": userObjectId
         }
       },
+      
+      // Compute total_cost
+      {
+        $addFields: {
+          total_cost: { $multiply: ["$price", "$quantity"] }
+        }
+      },
 
       { $sort: sortStage },
 
