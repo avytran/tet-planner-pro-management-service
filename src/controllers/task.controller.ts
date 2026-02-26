@@ -61,7 +61,7 @@ export const getTasksController = async (
   next: NextFunction
 ) => {
   try {
-    const { categoryId, timeline, priority, status } = req.query;
+    const { categoryId, timeline, priority, status, page = 1, pageSize = 10 } = req.query;
 
     const userId = req.user.sub as string;
 
@@ -88,6 +88,14 @@ export const getTasksController = async (
 
     if (status) {
       filter.status = status as TaskStatus;
+    }
+
+    if (page) {
+      filter.page = Number(page);
+    }
+
+    if (pageSize) {
+      filter.pageSize = Number(pageSize);
     }
 
     const result = await getTasks(filter, userId);
