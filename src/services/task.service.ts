@@ -1,7 +1,7 @@
 import TaskModel from "../database/models/task.model";
 import TaskCategoryModel from "../database/models/taskCategory.model";
 import ShoppingItemModel from "../database/models/shoppingItem.model";
-import { Task, CreateTaskInput, UpdateTaskInput, GetTasksFilter, GetTask } from "../types/task";
+import { Task, CreateTaskInput, UpdateTaskInput, GetTasksFilter, GetTask, GetTasks } from "../types/task";
 import { DbResult } from "../types/dbResult";
 import { getUserCategoryIds } from "../utils/db.util";
 import mongoose from "mongoose";
@@ -52,7 +52,7 @@ export const createTask = async (
 export const getTasks = async (
   filter: GetTasksFilter,
   userId: string
-): Promise<DbResult<GetTask[]>> => {
+): Promise<DbResult<GetTasks>> => {
   try {
     const userCategoryIds = await getUserCategoryIds(userId);
 
@@ -74,8 +74,16 @@ export const getTasks = async (
     if (filter.timeline) query.timeline = filter.timeline;
     if (filter.priority) query.priority = filter.priority;
 
+    const pageNum = Math.max(1, filter.page || 1);
+    const pageSizeNum = Math.min(100, Math.max(1, filter.pageSize) || 10);
+
+    const skip = (pageNum - 1) * pageSizeNum;
+
     const tasks = await TaskModel.aggregate([
       { $match: query },
+
+      { $skip: skip },
+      { $limit: pageSizeNum },
 
       {
         $lookup: {
@@ -107,6 +115,8 @@ export const getTasks = async (
       },
     ]);
 
+    const totalItems = await TaskModel.countDocuments(query);
+
     const result = tasks.map(task => ({
       id: task._id.toString(),
       category: {
@@ -124,7 +134,13 @@ export const getTasks = async (
 
     return {
       status: "success",
-      data: result,
+      data: {
+        page: pageNum,
+        pageSize: pageSizeNum,
+        totalItems,
+        totalPages: Math.ceil(totalItems / pageSizeNum),
+        tasks: result
+      },
     };
   } catch (error) {
     console.error("Failed to get tasks:", error);

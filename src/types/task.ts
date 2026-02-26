@@ -33,6 +33,14 @@ export interface GetTask{
   updatedAt: Date;
 }
 
+export interface GetTasks{
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  tasks: GetTask[]
+}
+
 export interface CreateTaskInput {
   category_id: ObjectId;
   title: string;
@@ -47,6 +55,8 @@ export interface GetTasksFilter {
   timeline?: Timeline;
   priority?: Priority;
   status?: TaskStatus;
+  page?: number;
+  pageSize?: number;
 }
 
 export type UpdateTaskInput = Partial<CreateTaskInput>;
