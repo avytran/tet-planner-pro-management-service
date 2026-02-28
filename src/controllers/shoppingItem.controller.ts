@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { getShoppingItemById, getShoppingItems, deleteShoppingItem, createShoppingItem, updateAllFieldsOfShoppingItem } from "../services/shoppingItem.service";
+import { getShoppingItemById, getShoppingItems, deleteShoppingItem, createShoppingItem, updateAllFieldsOfShoppingItem, deleteAllShoppingItemsOfUser } from "../services/shoppingItem.service";
 import { checkValidId } from "../utils/db.util";
 
 export const getShoppingItemByIdController = async (
@@ -189,4 +189,24 @@ export const updateAllFieldsOfShoppingItemController = async (
       message: "Internal server error",
     });
   }
+}
+
+export const deleteAllShoppingItemsOfUserController = async (req: Request, res: Response) => {
+    const userId = req.user.sub as string;
+
+    try {
+        const result = await deleteAllShoppingItemsOfUser(userId);
+
+        if (result.status === "error") {
+            return res.status(500).json(result);
+        }
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error("Controller error:", error);
+        return {
+            status: "error",
+            message: "Internal server error",
+        };
+    }
 }
