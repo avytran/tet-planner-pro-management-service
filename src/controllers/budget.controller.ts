@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { getBudgetById, getBudgets, deleteBudget, createBudget, updateBudget } from "../services/budget.service";
+import { getBudgetById, getBudgets, deleteBudget, createBudget, updateBudget, deleteAllBudgetsOfUser } from "../services/budget.service";
 import { checkValidId } from "../utils/db.util";
 import mongoose from "mongoose";
 
@@ -146,6 +146,26 @@ export const updateBudgetController = async (req: Request, res: Response) => {
             if (result.message === "Budget not found") {
                 return res.status(404).json(result);
             }
+            return res.status(500).json(result);
+        }
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error("Controller error:", error);
+        return {
+            status: "error",
+            message: "Internal server error",
+        };
+    }
+}
+
+export const deleteAllBudgetsOfUserController = async (req: Request, res: Response) => {
+    const userId = req.user.sub as string;
+
+    try {
+        const result = await deleteAllBudgetsOfUser(userId);
+
+        if (result.status === "error") {
             return res.status(500).json(result);
         }
 
