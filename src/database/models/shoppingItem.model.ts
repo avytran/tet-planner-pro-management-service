@@ -25,7 +25,6 @@ const ShoppingItemSchema: Schema<IShoppingItem> = new Schema(
 
     task_id: {
       type: ObjectId,
-      required: true,
       ref: "Task",
     },
 

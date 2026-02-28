@@ -119,7 +119,7 @@ export const createShoppingItemController = async (
   try {
     const userId = req.user.sub as string;
 
-    if (!checkValidId(item.budgetId) || !checkValidId(item.taskId) || !checkValidId(userId)) {
+    if (!checkValidId(item.budgetId) || (item?.taskId && !checkValidId(item.taskId)) || !checkValidId(userId)) {
       return res.status(400).json({
         status: "error",
         message: "Invalid ID format",
@@ -157,7 +157,7 @@ export const updateAllFieldsOfShoppingItemController = async (
   const userId = req.user.sub as string;
 
   try {
-    if (!checkValidId(item.budgetId) || !checkValidId(item.taskId) || !checkValidId(userId)) {
+    if (!checkValidId(item.budgetId) || (item?.taskId && !checkValidId(item.taskId)) || !checkValidId(userId)) {
       return res.status(400).json({
         status: "error",
         message: "Invalid ID format",
