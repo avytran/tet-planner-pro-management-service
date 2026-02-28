@@ -25,7 +25,7 @@ const basedShoppingItemAjvSchema = {
 
 export const CreatingShoppingItemAjvSchema = {
   ...basedShoppingItemAjvSchema,
-  required: ["budgetId", "taskId", "name", "quantity", "price", "duedTime", "timeline", "status"],
+  required: ["budgetId", "name", "quantity", "price", "duedTime", "timeline", "status"],
   additionalProperties: false,
 };
 

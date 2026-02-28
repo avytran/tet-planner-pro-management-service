@@ -43,7 +43,12 @@ export const getShoppingItemById = async (
           as: "task"
         }
       },
-      { $unwind: "$task" },
+      {
+        $unwind: {
+          path: "$task",
+          preserveNullAndEmptyArrays: true
+        }
+      },
 
       {
         $lookup: {
@@ -53,11 +58,21 @@ export const getShoppingItemById = async (
           as: "task_category"
         }
       },
-      { $unwind: "$task_category" },
+      {
+        $unwind: {
+          path: "$task_category",
+          preserveNullAndEmptyArrays: true
+        }
+      },
 
       {
         $match: {
-          "task_category.user_id": userObjectId
+          $or: [
+            { task_id: null },
+            { task_id: { $exists: false } },
+
+            { "task_category.user_id": userObjectId }
+          ]
         }
       },
 
@@ -75,12 +90,12 @@ export const getShoppingItemById = async (
 
           budget: {
             id: "$budget._id",
-            name: "$budget.name",
+            name: "$budget.name"
           },
 
           task: {
             id: "$task._id",
-            title: "$task.title",
+            title: "$task.title"
           }
         }
       }
@@ -100,7 +115,7 @@ export const getShoppingItemById = async (
       data: {
         id: item._id,
         budget: item.budget,
-        task: item.task,
+        task: item?.task || null,
         name: item.name,
         price: item.price,
         status: item.status,
@@ -182,9 +197,7 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
           as: "budget"
         }
       },
-      {
-        $unwind: "$budget"
-      },
+      { $unwind: "$budget" },
 
       {
         $match: {
@@ -200,7 +213,12 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
           as: "task"
         }
       },
-      { $unwind: "$task" },
+      {
+        $unwind: {
+          path: "$task",
+          preserveNullAndEmptyArrays: true
+        }
+      },
 
       {
         $lookup: {
@@ -210,15 +228,24 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
           as: "task_category"
         }
       },
-      { $unwind: "$task_category" },
-
       {
-        $match: {
-          "task_category.user_id": userObjectId
+        $unwind: {
+          path: "$task_category",
+          preserveNullAndEmptyArrays: true
         }
       },
 
-      // Compute total_cost
+      {
+        $match: {
+          $or: [
+            { task_id: null },
+            { task_id: { $exists: false } },
+
+            { "task_category.user_id": userObjectId }
+          ]
+        }
+      },
+
       {
         $addFields: {
           total_cost: { $multiply: ["$price", "$quantity"] }
@@ -243,14 +270,15 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
                 timeline: 1,
                 created_at: 1,
                 updated_at: 1,
+
                 budget: {
                   id: "$budget._id",
-                  name: "$budget.name",
+                  name: "$budget.name"
                 },
 
                 task: {
                   id: "$task._id",
-                  title: "$task.title",
+                  title: "$task.title"
                 }
               }
             }
@@ -260,7 +288,7 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
           ]
         }
       }
-    ]
+    ];
 
     const aggResult = await ShoppingItemModel.collection
       .aggregate(pipeline as any[])
@@ -272,7 +300,7 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
     const result = items.map(item => ({
       id: item._id,
       budget: item.budget,
-      task: item.task,
+      task: item?.task || null,
       name: item.name,
       price: item.price,
       status: item.status,
@@ -309,9 +337,7 @@ export const deleteShoppingItem = async (itemId: string, userId: string): Promis
     const itemObjectId = new mongoose.Types.ObjectId(itemId);
 
     const items = await ShoppingItemModel.aggregate([
-      {
-        $match: { _id: itemObjectId }
-      },
+      { $match: { _id: itemObjectId } },
 
       {
         $lookup: {
@@ -337,7 +363,12 @@ export const deleteShoppingItem = async (itemId: string, userId: string): Promis
           as: "task"
         }
       },
-      { $unwind: "$task" },
+      {
+        $unwind: {
+          path: "$task",
+          preserveNullAndEmptyArrays: true
+        }
+      },
 
       {
         $lookup: {
@@ -347,11 +378,20 @@ export const deleteShoppingItem = async (itemId: string, userId: string): Promis
           as: "task_category"
         }
       },
-      { $unwind: "$task_category" },
+      {
+        $unwind: {
+          path: "$task_category",
+          preserveNullAndEmptyArrays: true
+        }
+      },
 
       {
         $match: {
-          "task_category.user_id": userObjectId
+          $or: [
+            { task_id: null },
+            { task_id: { $exists: false } },
+            { "task_category.user_id": userObjectId }
+          ]
         }
       },
 
@@ -384,51 +424,37 @@ export const deleteShoppingItem = async (itemId: string, userId: string): Promis
 
 export const createShoppingItem = async (item: ShoppingItem, userId: string): Promise<DbResult<ShoppingItem>> => {
   try {
-    const [validation] = await ShoppingItemModel.aggregate([
-      {
-        $lookup: {
-          from: "budgets",
-          localField: "budget_id",
-          foreignField: "_id",
-          as: "budget"
-        }
-      },
-      {
-        $lookup: {
-          from: "tasks",
-          localField: "task_id",
-          foreignField: "_id",
-          as: "task"
-        }
-      },
-      {
-        $lookup: {
-          from: "task_categories",
-          localField: "task.category_id",
-          foreignField: "_id",
-          as: "task_category"
-        }
-      },
-      {
-        $match: {
-          "budget._id": new mongoose.Types.ObjectId(item.budgetId),
-          "budget.user_id": new mongoose.Types.ObjectId(userId),
-          "task._id": new mongoose.Types.ObjectId(item.taskId),
-          "task_category.user_id": new mongoose.Types.ObjectId(userId)
-        }
-      }
-    ]);
+    const budget = await BudgetModel.findOne({
+      _id: item.budgetId,
+      user_id: userId,
+    });
 
-    if (!validation) {
-      return {
-        status: "error",
-        message: "Budget or Task does not belong to user"
-      };
+    if (!budget) {
+      return { status: "error", message: "Budget does not belong to user" };
+    }
+
+    if (item?.taskId) {
+      const task = await TaskModel.findOne({
+        _id: item.taskId,
+      });
+
+      if (!task) {
+        return { status: "error", message: "Task not found" };
+      }
+
+      const taskCategory = await TaskCategoryModel.findOne({
+        _id: task.category_id,
+        user_id: userId,
+      });
+
+      if (!taskCategory) {
+        return { status: "error", message: "Task category does not belong to user" };
+      }
     }
 
     const created = await ShoppingItemModel.create({
       budget_id: item.budgetId,
-      task_id: item.taskId,
+      task_id: item?.taskId || null,
       name: item.name,
       price: item.price,
       status: item.status,
@@ -442,7 +468,7 @@ export const createShoppingItem = async (item: ShoppingItem, userId: string): Pr
       data: {
         id: created._id.toString(),
         budgetId: created.budget_id.toString(),
-        taskId: created.task_id.toString(),
+        taskId: created?.task_id ? created.task_id.toString() : null,
         name: created.name,
         price: created.price,
         status: created.status,
@@ -485,6 +511,12 @@ export const updateAllFieldsOfShoppingItem = async (
       { $unwind: "$budget" },
 
       {
+        $match: {
+          "budget.user_id": objectUserId
+        }
+      },
+
+      {
         $lookup: {
           from: "tasks",
           localField: "task_id",
@@ -492,7 +524,12 @@ export const updateAllFieldsOfShoppingItem = async (
           as: "task"
         }
       },
-      { $unwind: "$task" },
+      {
+        $unwind: {
+          path: "$task",
+          preserveNullAndEmptyArrays: true
+        }
+      },
 
       {
         $lookup: {
@@ -502,12 +539,21 @@ export const updateAllFieldsOfShoppingItem = async (
           as: "task_category"
         }
       },
-      { $unwind: "$task_category" },
+      {
+        $unwind: {
+          path: "$task_category",
+          preserveNullAndEmptyArrays: true
+        }
+      },
 
       {
         $match: {
-          "budget.user_id": objectUserId,
-          "task_category.user_id": objectUserId
+          $or: [
+            { task_id: null },
+            { task_id: { $exists: false } },
+
+            { "task_category.user_id": objectUserId }
+          ]
         }
       }
     ]);
@@ -585,7 +631,7 @@ export const updateAllFieldsOfShoppingItem = async (
       data: {
         id: updatedItem._id.toString(),
         budgetId: updatedItem.budget_id.toString(),
-        taskId: updatedItem.task_id.toString(),
+        taskId: updatedItem?.task_id ? updatedItem?.task_id.toString() : null,
         name: updatedItem.name,
         price: updatedItem.price,
         status: updatedItem.status,
@@ -741,6 +787,14 @@ export const deleteAllShoppingItemsOfUser = async (userId: string) => {
 
     const budgetIds = budgets.map(b => b._id);
 
+    if (budgetIds.length === 0) {
+      await session.commitTransaction();
+      return {
+        status: "success",
+        data: { deletedShoppingItems: 0 }
+      };
+    }
+
     const categories = await TaskCategoryModel.find({ user_id: userObjectId })
       .select("_id")
       .session(session);
@@ -755,36 +809,31 @@ export const deleteAllShoppingItemsOfUser = async (userId: string) => {
 
     const taskIds = tasks.map(t => t._id);
 
-    // Build delete condition safely (task_id is optional)
-    const conditions: any[] = [];
+    const deleteFilter: any = {
+      budget_id: { $in: budgetIds }
+    };
 
-    if (budgetIds.length > 0) {
-      conditions.push({ budget_id: { $in: budgetIds } });
-    }
-
+    // only apply task filter if task exists
     if (taskIds.length > 0) {
-      conditions.push({ task_id: { $in: taskIds } });
+      deleteFilter.$or = [
+        { task_id: { $exists: false } },
+        { task_id: null },
+        { task_id: { $in: taskIds } }
+      ];
     }
 
-    let deletedCount = 0;
-
-    if (conditions.length > 0) {
-      const result = await ShoppingItemModel.deleteMany(
-        { $or: conditions },
-        { session }
-      );
-      deletedCount = result.deletedCount ?? 0;
-    }
+    const result = await ShoppingItemModel.deleteMany(deleteFilter, { session });
 
     await session.commitTransaction();
 
     return {
       status: "success",
       data: {
-        deletedShoppingItems: deletedCount,
+        deletedShoppingItems: result.deletedCount ?? 0,
         message: "All shopping items of the user deleted successfully"
       }
     };
+
   } catch (error) {
     await session.abortTransaction();
     console.error("deleteAllShoppingItemsOfUser error:", error);
