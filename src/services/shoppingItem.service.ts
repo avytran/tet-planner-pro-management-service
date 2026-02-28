@@ -3,7 +3,7 @@ import ShoppingItemModel from "../database/models/shoppingItem.model";
 import BudgetModel from "../database/models/budget.model";
 import TaskModel from "../database/models/task.model";
 import { DbResult } from "../types/dbResult";
-import { ShoppingItem, ShoppingItemQuery } from "../types/shoppingItem";
+import { ShoppingItem, ShoppingItemQuery, SpendingTimeline } from "../types/shoppingItem";
 
 export const getShoppingItemById = async (
   itemId: string,
@@ -168,7 +168,7 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
 
     const skip = (Number(page) - 1) * Number(pageSize);
 
-    const pipeline = [
+    const pipeline: any[] = [
       {
         $match: matchStage
       },
@@ -261,7 +261,9 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
       }
     ]
 
-    const aggResult = await ShoppingItemModel.aggregate(pipeline);
+    const aggResult = await ShoppingItemModel.collection
+      .aggregate(pipeline as any[])
+      .toArray();
 
     const items = aggResult[0].items || [];
     const totalItems = aggResult[0].totalCount[0]?.count || 0;
@@ -298,6 +300,7 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
     };
   }
 }
+
 
 export const deleteShoppingItem = async (itemId: string, userId: string): Promise<DbResult<object>> => {
   try {
@@ -601,3 +604,126 @@ export const updateAllFieldsOfShoppingItem = async (
     };
   }
 };
+
+export const getSpendingTimeline = async (
+  userId: string,
+  fromDate?: string,
+  toDate?: string
+): Promise<DbResult<SpendingTimeline>> => {
+  try {
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    const matchStage: any = {
+      status: "Completed",
+    };
+
+    if (fromDate || toDate) {
+      const start = fromDate ? new Date(fromDate) : new Date(0);
+      const end = toDate ? new Date(toDate) : new Date();
+      end.setHours(23, 59, 59, 999);
+
+      matchStage.dued_time = { $gte: start, $lte: end };
+    }
+
+    const pipeline = [
+      {
+        $match: matchStage
+      },
+      {
+        $lookup: {
+          from: "budgets",
+          localField: "budget_id",
+          foreignField: "_id",
+          as: "budget"
+        }
+      },
+      { $unwind: "$budget" },
+      {
+        $match: {
+          "budget.user_id": userObjectId
+        }
+      },
+      {
+        $addFields: {
+          total_cost: { $multiply: ["$price", "$quantity"] },
+          dued_date_str: {
+            $dateToString: {
+              format: "%d/%m",
+              date: "$dued_time"
+            }
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            date: "$dued_date_str",
+            budgetName: "$budget.name"
+          },
+          totalSpending: { $sum: "$total_cost" }
+        }
+      },
+      {
+        $group: {
+          _id: "$_id.date",
+          budgets: {
+            $push: {
+              label: "$_id.budgetName",
+              value: "$totalSpending"
+            }
+          }
+        }
+      },
+      {
+        $sort: { _id: 1 }
+      }
+    ];
+
+    const aggResult = await ShoppingItemModel.collection
+      .aggregate(pipeline as any[])
+      .toArray();
+
+    const dates: string[] = aggResult.map((item: any) => item._id);
+
+    const budgetSet = new Set<string>();
+    aggResult.forEach((item: any) => {
+      item.budgets.forEach((b: any) => budgetSet.add(b.label));
+    });
+
+    const budgetNames = Array.from(budgetSet);
+
+    const seriesMap: Record<string, number[]> = {};
+    budgetNames.forEach((name) => {
+      seriesMap[name] = new Array(dates.length).fill(0);
+    });
+
+    aggResult.forEach((item: any, dateIndex: number) => {
+      item.budgets.forEach((b: any) => {
+        if (!seriesMap[b.label]) {
+          seriesMap[b.label] = new Array(dates.length).fill(0);
+        }
+        seriesMap[b.label][dateIndex] = b.value;
+      });
+    });
+
+    const series = budgetNames.map((name) => ({
+      label: name,
+      data: seriesMap[name]
+    }));
+
+    return {
+      status: "success",
+      data: {
+        dates,
+        series
+      }
+    };
+  } catch (error) {
+    console.error("getSpendingTimeline error:", error);
+    return {
+      status: "error",
+      message: "Internal server error",
+    };
+  }
+}
+

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { getShoppingItemById, getShoppingItems, deleteShoppingItem, createShoppingItem, updateAllFieldsOfShoppingItem } from "../services/shoppingItem.service";
+import { getShoppingItemById, getShoppingItems, deleteShoppingItem, createShoppingItem, updateAllFieldsOfShoppingItem, getSpendingTimeline } from "../services/shoppingItem.service";
 import { checkValidId } from "../utils/db.util";
 
 export const getShoppingItemByIdController = async (
@@ -181,6 +181,42 @@ export const updateAllFieldsOfShoppingItemController = async (
 
     return res.status(200).json(result);
 
+  } catch (error) {
+    console.error("Controller Error:", error);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Internal server error",
+    });
+  }
+}
+
+export const getSpendingTimelineController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const userId = req.user.sub as string;
+    const { fromDate, toDate } = req.query;
+
+    if (!checkValidId(userId)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid ID format",
+      });
+    }
+
+    const result = await getSpendingTimeline(
+      userId,
+      typeof fromDate === "string" ? fromDate : undefined,
+      typeof toDate === "string" ? toDate : undefined
+    );
+
+    if (result.status === "error") {
+      return res.status(500).json(result);
+    }
+
+    return res.status(200).json(result);
   } catch (error) {
     console.error("Controller Error:", error);
 
