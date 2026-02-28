@@ -168,8 +168,9 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
 
     if (duedTime) {
       const start = new Date(duedTime);
+      start.setUTCHours(0, 0, 0, 0);
       const end = new Date(duedTime);
-      end.setHours(23, 59, 59, 999);
+      end.setUTCHours(23, 59, 59, 999);
       matchStage.dued_time = { $gte: start, $lte: end };
     }
 
