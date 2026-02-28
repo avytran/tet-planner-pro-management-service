@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getShoppingItemByIdController, getShoppingItemsController, deleteShoppingItemController, createShoppingItemController, updateAllFieldsOfShoppingItemController, getSpendingTimelineController } from "../controllers/shoppingItem.controller";
+import { getShoppingItemByIdController, getShoppingItemsController, deleteShoppingItemController, createShoppingItemController, updateAllFieldsOfShoppingItemController, deleteAllShoppingItemsOfUserController, getSpendingTimelineController } from "../controllers/shoppingItem.controller";
 import validate from "../middlewares/validate.mdw";
 import { CreatingShoppingItemAjvSchema, UpdatingAllFieldShoppingItemAjvSchema } from "../entities/shoppingItem.entity";
 import { verifyJwt } from "../middlewares/auth.mdw";
@@ -13,5 +13,6 @@ router.get("/:itemId", verifyJwt, verifyUser, getShoppingItemByIdController);
 router.get("/", verifyJwt, verifyUser, getShoppingItemsController)
 router.get("/analytics/spending-timeline", verifyJwt, verifyUser, getSpendingTimelineController);
 router.delete("/:itemId", verifyJwt, verifyUser, deleteShoppingItemController);
+router.delete("/", verifyJwt, verifyUser, deleteAllShoppingItemsOfUserController)
 
 export default router;

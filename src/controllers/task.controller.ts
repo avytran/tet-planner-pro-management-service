@@ -6,6 +6,7 @@ import {
   updateTask,
   patchTask,
   deleteTask,
+  deleteAllTasksOfUser,
 } from "../services/task.service";
 import { Timeline, Priority, TaskStatus } from "../types/task";
 import { checkValidId } from "../utils/db.util";
@@ -61,7 +62,7 @@ export const getTasksController = async (
   next: NextFunction
 ) => {
   try {
-    const { categoryId, timeline, priority, status } = req.query;
+    const { categoryId, timeline, priority, status, page = 1, pageSize = 10 } = req.query;
 
     const userId = req.user.sub as string;
 
@@ -88,6 +89,14 @@ export const getTasksController = async (
 
     if (status) {
       filter.status = status as TaskStatus;
+    }
+
+    if (page) {
+      filter.page = Number(page);
+    }
+
+    if (pageSize) {
+      filter.pageSize = Number(pageSize);
     }
 
     const result = await getTasks(filter, userId);
@@ -268,3 +277,23 @@ export const deleteTaskController = async (
     return next(error);
   }
 };
+
+export const deleteAllTasksOfUserController = async (req: Request, res: Response) => {
+    const userId = req.user.sub as string;
+
+    try {
+        const result = await deleteAllTasksOfUser(userId);
+
+        if (result.status === "error") {
+            return res.status(500).json(result);
+        }
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error("Controller error:", error);
+        return {
+            status: "error",
+            message: "Internal server error",
+        };
+    }
+}

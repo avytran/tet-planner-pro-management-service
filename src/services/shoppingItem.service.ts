@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import ShoppingItemModel from "../database/models/shoppingItem.model";
 import BudgetModel from "../database/models/budget.model";
 import TaskModel from "../database/models/task.model";
+import TaskCategoryModel from "../database/models/taskCategory.model";
 import { DbResult } from "../types/dbResult";
 import { ShoppingItem, ShoppingItemQuery, SpendingTimeline } from "../types/shoppingItem";
 
@@ -216,7 +217,7 @@ export const getShoppingItems = async (query: ShoppingItemQuery, userId: string)
           "task_category.user_id": userObjectId
         }
       },
-      
+
       // Compute total_cost
       {
         $addFields: {
@@ -727,3 +728,71 @@ export const getSpendingTimeline = async (
   }
 }
 
+export const deleteAllShoppingItemsOfUser = async (userId: string) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    const budgets = await BudgetModel.find({ user_id: userObjectId })
+      .select("_id")
+      .session(session);
+
+    const budgetIds = budgets.map(b => b._id);
+
+    const categories = await TaskCategoryModel.find({ user_id: userObjectId })
+      .select("_id")
+      .session(session);
+
+    const categoryIds = categories.map(c => c._id);
+
+    const tasks = await TaskModel.find({
+      category_id: { $in: categoryIds }
+    })
+      .select("_id")
+      .session(session);
+
+    const taskIds = tasks.map(t => t._id);
+
+    // Build delete condition safely (task_id is optional)
+    const conditions: any[] = [];
+
+    if (budgetIds.length > 0) {
+      conditions.push({ budget_id: { $in: budgetIds } });
+    }
+
+    if (taskIds.length > 0) {
+      conditions.push({ task_id: { $in: taskIds } });
+    }
+
+    let deletedCount = 0;
+
+    if (conditions.length > 0) {
+      const result = await ShoppingItemModel.deleteMany(
+        { $or: conditions },
+        { session }
+      );
+      deletedCount = result.deletedCount ?? 0;
+    }
+
+    await session.commitTransaction();
+
+    return {
+      status: "success",
+      data: {
+        deletedShoppingItems: deletedCount,
+        message: "All shopping items of the user deleted successfully"
+      }
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("deleteAllShoppingItemsOfUser error:", error);
+    return {
+      status: "error",
+      message: "Internal server error"
+    };
+  } finally {
+    session.endSession();
+  }
+};

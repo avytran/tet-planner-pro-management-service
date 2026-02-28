@@ -6,6 +6,7 @@ import {
   updateTaskController,
   patchTaskController,
   deleteTaskController,
+  deleteAllTasksOfUserController,
 } from "../controllers/task.controller";
 import validate from "../middlewares/validate.mdw";
 import { creatingTaskAjvSchema, updatingTaskAjvSchema, patchingTaskAjvSchema } from "../entities/task.entity";
@@ -20,6 +21,7 @@ router.get("/:taskId", verifyJwt, verifyUser, getTaskByIdController);
 router.put("/:taskId", verifyJwt, verifyUser, validate(updatingTaskAjvSchema), updateTaskController);
 router.patch("/:taskId", verifyJwt, verifyUser, validate(patchingTaskAjvSchema), patchTaskController);
 router.delete("/:taskId", verifyJwt, verifyUser, deleteTaskController);
+router.delete("/", verifyJwt, verifyUser, deleteAllTasksOfUserController)
 
 export default router;
 

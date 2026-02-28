@@ -4,6 +4,7 @@ import ShoppingItemModel from "../database/models/shoppingItem.model";
 import { DbResult } from "../types/dbResult";
 import { Budget, BudgetPayload } from "../types/budget";
 import { ObjectId } from "mongodb";
+import { getUserBudgetIds } from "../utils/db.util";
 
 export const getBudgetById = async (budgetObjectId: ObjectId, userObjectId: ObjectId): Promise<DbResult<Budget>> => {
     try {
@@ -182,18 +183,23 @@ export const createBudget = async (payload: BudgetPayload): Promise<DbResult<Bud
 
 export const updateBudget = async (id: string, payload: BudgetPayload): Promise<DbResult<Budget>> => {
     try {
-        const updatedBudget = await BudgetModel.findByIdAndUpdate(
-            id,
-            {
-                $set:
+        const [updatedBudget, items] = await Promise.all([
+            BudgetModel.findByIdAndUpdate(
+                id,
                 {
-                    user_id: payload.userId,
-                    name: payload.name,
-                    allocated_amount: payload.allocatedAmount
-                }
-            },
-            { new: true }
-        ).lean();
+                    $set:
+                    {
+                        user_id: payload.userId,
+                        name: payload.name,
+                        allocated_amount: payload.allocatedAmount
+                    }
+                },
+                { new: true }
+            ).lean(),
+            ShoppingItemModel.find({ budget_id: id })
+        ])
+
+        const summary = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
         if (!updatedBudget) {
             return {
@@ -211,6 +217,7 @@ export const updateBudget = async (id: string, payload: BudgetPayload): Promise<
                 allocatedAmount: updatedBudget.allocated_amount,
                 createdAt: updatedBudget.created_at,
                 updatedAt: updatedBudget.updated_at,
+                summary
             },
         };
     } catch (error) {
@@ -221,3 +228,34 @@ export const updateBudget = async (id: string, payload: BudgetPayload): Promise<
         };
     }
 };
+
+export const deleteAllBudgetsOfUser = async (userId: string) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const budgetIds = await getUserBudgetIds(userId);
+
+        const budgetResult = await BudgetModel.deleteMany({ user_id: new ObjectId(userId) }).session(session);
+        const itemResult = await ShoppingItemModel.deleteMany({ budget_id: { $in: budgetIds } }).session(session);
+
+        await session.commitTransaction();
+
+        return {
+            status: "success",
+            data: { 
+                deletedBudgets: budgetResult.deletedCount,
+                deletedShoppingItems: itemResult.deletedCount,
+                message: "All budgets of the user and related shopping items deleted successfully" 
+            }
+        };
+    } catch (error) {
+        await session.abortTransaction();
+        console.error("deleteAllBudgetsOfUser error:", error);
+        return {
+            status: "error",
+            message: "Internal server error",
+        };
+    } finally {
+        session.endSession();
+    }
+}
