@@ -235,14 +235,18 @@ export const deleteAllBudgetsOfUser = async (userId: string) => {
     try {
         const budgetIds = await getUserBudgetIds(userId);
 
-        await BudgetModel.deleteMany({ user_id: new ObjectId(userId) }).session(session);
-        await ShoppingItemModel.deleteMany({ budget_id: { $in: budgetIds } }).session(session);
+        const budgetResult = await BudgetModel.deleteMany({ user_id: new ObjectId(userId) }).session(session);
+        const itemResult = await ShoppingItemModel.deleteMany({ budget_id: { $in: budgetIds } }).session(session);
 
         await session.commitTransaction();
 
         return {
             status: "success",
-            data: { message: "All budgets of the user and related shopping items deleted successfully" }
+            data: { 
+                deletedBudgets: budgetResult.deletedCount,
+                deletedShoppingItems: itemResult.deletedCount,
+                message: "All budgets of the user and related shopping items deleted successfully" 
+            }
         };
     } catch (error) {
         await session.abortTransaction();
