@@ -182,18 +182,23 @@ export const createBudget = async (payload: BudgetPayload): Promise<DbResult<Bud
 
 export const updateBudget = async (id: string, payload: BudgetPayload): Promise<DbResult<Budget>> => {
     try {
-        const updatedBudget = await BudgetModel.findByIdAndUpdate(
-            id,
-            {
-                $set:
+        const [updatedBudget, items] = await Promise.all([
+            BudgetModel.findByIdAndUpdate(
+                id,
                 {
-                    user_id: payload.userId,
-                    name: payload.name,
-                    allocated_amount: payload.allocatedAmount
-                }
-            },
-            { new: true }
-        ).lean();
+                    $set:
+                    {
+                        user_id: payload.userId,
+                        name: payload.name,
+                        allocated_amount: payload.allocatedAmount
+                    }
+                },
+                { new: true }
+            ).lean(),
+            ShoppingItemModel.find({ budget_id: id })
+        ])
+
+        const summary = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
         if (!updatedBudget) {
             return {
@@ -211,6 +216,7 @@ export const updateBudget = async (id: string, payload: BudgetPayload): Promise<
                 allocatedAmount: updatedBudget.allocated_amount,
                 createdAt: updatedBudget.created_at,
                 updatedAt: updatedBudget.updated_at,
+                summary
             },
         };
     } catch (error) {
