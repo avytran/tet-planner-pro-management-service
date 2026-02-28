@@ -4,6 +4,7 @@ import ShoppingItemModel from "../database/models/shoppingItem.model";
 import { DbResult } from "../types/dbResult";
 import { Budget, BudgetPayload } from "../types/budget";
 import { ObjectId } from "mongodb";
+import { getUserBudgetIds } from "../utils/db.util";
 
 export const getBudgetById = async (budgetObjectId: ObjectId, userObjectId: ObjectId): Promise<DbResult<Budget>> => {
     try {
@@ -227,3 +228,34 @@ export const updateBudget = async (id: string, payload: BudgetPayload): Promise<
         };
     }
 };
+
+export const deleteAllBudgetsOfUser = async (userId: string) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const budgetIds = await getUserBudgetIds(userId);
+
+        const budgetResult = await BudgetModel.deleteMany({ user_id: new ObjectId(userId) }).session(session);
+        const itemResult = await ShoppingItemModel.deleteMany({ budget_id: { $in: budgetIds } }).session(session);
+
+        await session.commitTransaction();
+
+        return {
+            status: "success",
+            data: { 
+                deletedBudgets: budgetResult.deletedCount,
+                deletedShoppingItems: itemResult.deletedCount,
+                message: "All budgets of the user and related shopping items deleted successfully" 
+            }
+        };
+    } catch (error) {
+        await session.abortTransaction();
+        console.error("deleteAllBudgetsOfUser error:", error);
+        return {
+            status: "error",
+            message: "Internal server error",
+        };
+    } finally {
+        session.endSession();
+    }
+}

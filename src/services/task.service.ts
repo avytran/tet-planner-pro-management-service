@@ -402,3 +402,40 @@ export const deleteTask = async (
     session.endSession();
   }
 };
+
+export const deleteAllTasksOfUser = async (userId: string) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const userCategoryIds = await getUserCategoryIds(userId);
+
+    const tasks = await TaskModel.find({
+      category_id: { $in: userCategoryIds }
+    }).select("_id").session(session);
+
+    const taskIds = tasks.map(t => t._id);
+
+    const taskResult = await TaskModel.deleteMany({ category_id: { $in: userCategoryIds } }).session(session);
+    const itemResult = await ShoppingItemModel.deleteMany({ task_id: { $in: taskIds } }).session(session);
+
+    await session.commitTransaction();
+
+    return {
+      status: "success",
+      data: {
+        deletedTasks: taskResult.deletedCount,
+        deletedShoppingItems: itemResult.deletedCount,
+        message: "All tasks of the user and related shopping items deleted successfully"
+      }
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("deleteAllBudgetsOfUser error:", error);
+    return {
+      status: "error",
+      message: "Internal server error",
+    };
+  } finally {
+    session.endSession();
+  }
+}
